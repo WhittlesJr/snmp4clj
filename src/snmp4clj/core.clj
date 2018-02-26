@@ -18,8 +18,8 @@
                      :async            nil
                      :max-rows-per-pdu 10
                      :max-cols-per-pdu 10
-                     :lower-bound      nil
-                     :upper-bound      nil
+                     :lower-bound      0
+                     :upper-bound      999999
                      :timeout          10
                      :retries          3
                      :max-pdu          65535})
@@ -30,9 +30,11 @@
   [var-binds]
 
   (reduce (fn [m var-bind]
-            (assoc m
-                   (-> var-bind .getOid .toDottedString)
-                   (-> var-bind .toValueString)))
+            (if (some? var-bind)
+              (assoc m
+                     (-> var-bind .getOid .toDottedString)
+                     (-> var-bind .toValueString))
+              m))
           (ordered-map)
           var-binds))
 
@@ -59,28 +61,31 @@
 (def snmp-get-next (partial snmp-get-request PDU/GETNEXT))
 (def snmp-get-bulk (partial snmp-get-request PDU/GETBULK))
 
+(defn- snmp-table->clojure-maps
+  [table oids]
+  (->> table
+       (map (comp seq (memfn getColumns)))
+       (map snmp->clojure)
+       (apply merge)))
+
 (defn snmp-table-walk
   ([oids config]
    (session/with-snmp-session s
      (snmp-table-walk s oids config)))
 
   ([session oids config]
-  (let [{:keys [version community async max-rows-per-pdu max-cols-per-pdu
-                lower-bound upper-bound] :as config} (merge default-config config)
+   (let [{:keys [version community async max-rows-per-pdu max-cols-per-pdu
+                 lower-bound upper-bound] :as config} (merge default-config config)
 
-        oids    (get-oids oids)
-        target  (target/create-target version config)
-        table   (doto (TableUtils. session (DefaultPDUFactory.))
-                  (.setMaxNumRowsPerPDU max-rows-per-pdu)
-                  (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
-    (if async
-      (.getTable table target async nil (OID. (str lower-bound)) (OID. (str upper-bound)))
-      ;; FIXME: ugly
-      (let [tbl (.getTable table target
-                           (into-array OID (map #(OID. %) oids))
-                           (OID. (str lower-bound))
-                           (OID. (str upper-bound)))]
-        (let [ret (map (comp seq (memfn getColumns)) tbl)]
-          (if (first ret)
-            ret
-            '())))))))
+         oids    (get-oids oids)
+         target  (target/create-target version config)
+         table   (doto (TableUtils. session (DefaultPDUFactory.))
+                   (.setMaxNumRowsPerPDU max-rows-per-pdu)
+                   (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
+     (if async
+       (.getTable table target async nil (OID. (str lower-bound)) (OID. (str upper-bound)))
+       (let [tbl (.getTable table target
+                            (into-array OID (map #(OID. %) oids))
+                            (OID. (str lower-bound))
+                            (OID. (str upper-bound)))]
+         (snmp-table->clojure-maps tbl oids))))))
