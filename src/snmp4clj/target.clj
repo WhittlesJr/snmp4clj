@@ -1,34 +1,26 @@
 (ns snmp4clj.target
-  (:use funky)
   (:import [org.snmp4j CommunityTarget]
            [org.snmp4j.mp SnmpConstants]
            [org.snmp4j.smi GenericAddress OctetString]))
 
+(defn- get-address
+  [{:keys [transport address port] :as config}]
+
+  (str transport ":" address "/" port))
+
 (defmulti create-target
-  (fn [v & _]
-    (if (contains? #{:v1 :v2c :v3} v)
-      v
+  (fn [version config]
+    (if (contains? #{:v1 :v2c :v3} version)
+      version
       :v2c)))
 
-(defmethodk create-target :default
-  [_
-   :community "public"
-   :address "udp:localhost/161"
-   :timeout 10
-   :retries 3
-   :max-pdu 65535
-   & extras]
+(defmethod create-target :default
+  [version {:keys [community] :as config}]
   (doto (CommunityTarget.)
     (.setCommunity (OctetString. community))
     (.setVersion SnmpConstants/version2c)
-    (.setAddress (GenericAddress/parse address))))
+    (.setAddress (GenericAddress/parse (get-address config)))))
 
-(defmethodk create-target :v3
-  [version
-   :community "public"
-   :address "udp:localhost/161"
-   :timeout 10
-   :retries 3
-   :max-pdu 65535
-   & extras]
+(defmethod create-target :v3
+  [version {:keys [community address] :as config}]
   (println "create-target: not implemented yet"))

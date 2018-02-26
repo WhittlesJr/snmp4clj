@@ -1,89 +1,75 @@
 (ns snmp4clj.core
-  (:use [snmp4clj pdu target])
-  (:use clojure.contrib.core
-        funky)
+  (:require [snmp4clj.pdu :as pdu]
+            [snmp4clj.target :as target]
+            [snmp4clj.session :as session])
   (:import [org.snmp4j Snmp PDU]
            [org.snmp4j.smi OID]
            [org.snmp4j.event ResponseListener]
            [org.snmp4j.util TableUtils TreeUtils DefaultPDUFactory])
   (:gen-class))
 
-(defnk snmp-get
-  [session
-   :community "public"
-   :address "udp:localhost/161"
-   :version :v2c
-   :async nil
-   & oid]
-  (let [pdu (create-pdu version PDU/GET oid)
-        target (create-target version
-              :community community
-              :address address)]
+(def default-config {:community        "public"
+                     :transport        "udp"
+                     :port             161
+                     :address          "localhost"
+                     :version          :v2c
+                     :async            nil
+                     :max-rows-per-pdu 10
+                     :max-cols-per-pdu 10
+                     :lower-bound      nil
+                     :upper-bound      nil
+                     :timeout          10
+                     :retries          3
+                     :max-pdu          65535})
+
+(defn snmp->clojure
+  [var-binds]
+
+  (reduce (fn [m var-bind]
+            (assoc m
+                   (-> var-bind .getOid .toDottedString)
+                   (-> var-bind .toValueString)))
+          {}
+          var-binds))
+
+(defn- snmp-get-request
+  ([command oids config]
+   (session/with-snmp-session s
+     (snmp-get-request command s oids config)))
+
+  ([command session oids config]
+  (let [{:keys [version community async] :as config} (merge default-config config)
+
+        oids    (if (string? oids) [oids] oids)
+        pdu     (pdu/create-pdu version command oids)
+        target  (target/create-target version config)
+        _ (println "P" pdu "T" target)]
     (if async
       (.send session pdu target nil async)
-      (-?> (.send session pdu target)
-           (.getResponse)
-           (.getVariableBindings)
-           (seq)))))
+      (some-> (.send session pdu target)
+              (.getResponse)
+              (.getVariableBindings)
+              (seq)
+              snmp->clojure)))))
 
-(defnk snmp-get-next
-  [session
-   :community "public"
-   :address "udp:localhost/161"
-   :version :v2c
-   :async nil
-   & oid]
-  (let [pdu (apply create-pdu version PDU/GETNEXT oid)
-        target (create-target version
-              :community community
-              :address address)]
-    (if async
-      (.send session pdu target nil async)
-      (-?> (.send session pdu target)
-           (.getResponse)
-           (.getVariableBindings)
-           (seq)))))
+(def snmp-get (partial snmp-get-request PDU/GET))
+(def snmp-get-next (partial snmp-get-request PDU/GETNEXT))
+(def snmp-get-bulk (partial snmp-get-request PDU/GETBULK))
 
-(defnk snmp-get-bulk
-  [session
-   :community "public"
-   :address "udp:localhost/161"
-   :version :v2c
-   :async nil
-   & oid]
-  (let [pdu (create-pdu version PDU/GETBULK oid)
-        target (create-target version
-              :community community
-              :address address)]
-    (if async
-      (.send session pdu target nil async)
-      (-?> (.send session pdu target)
-           (.getResponse)
-           (.getVariableBindings)
-           (seq)))))
+(defn snmp-table-walk
+  [session oids & [config]]
+  (let [{:keys [version community async max-rows-per-pdu max-cols-per-pdu
+                lower-bound upper-bound] :as config} (merge default-config config)
 
-(defnk snmp-table-walk
-  [session
-   :community "public"
-   :address "udp:localhost/161"
-   :version :v2c
-   :max-rows-per-pdu 10
-   :max-cols-per-pdu 10
-   :lower-bound nil
-   :upper-bound nil
-   :async nil
-   & oid]
-  (let [target (create-target version
-                 :community community
-                 :address address)
-        table (doto (TableUtils. session (DefaultPDUFactory.))
-               (.setMaxNumRowsPerPDU max-rows-per-pdu)
-               (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
+        target  (target/create-target version config)
+        table   (doto (TableUtils. session (DefaultPDUFactory.))
+                  (.setMaxNumRowsPerPDU max-rows-per-pdu)
+                  (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
     (if async
       (.getTable table target async nil (OID. (str lower-bound)) (OID. (str upper-bound)))
       ;; FIXME: ugly
       (let [tbl (.getTable table target
-                           (into-array OID (map #(OID. %) oid))
+                           (into-array OID (map #(OID. %) oids))
                            (OID. (str lower-bound))
                            (OID. (str upper-bound)))]
         (let [ret (map (comp seq (memfn getColumns)) tbl)]
