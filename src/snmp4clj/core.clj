@@ -1,5 +1,6 @@
 (ns snmp4clj.core
-  (:require [snmp4clj.pdu :as pdu]
+  (:require [flatland.ordered.map :refer [ordered-map]]
+            [snmp4clj.pdu :as pdu]
             [snmp4clj.target :as target]
             [snmp4clj.session :as session])
   (:import [org.snmp4j Snmp PDU]
@@ -30,7 +31,7 @@
             (assoc m
                    (-> var-bind .getOid .toDottedString)
                    (-> var-bind .toValueString)))
-          {}
+          (ordered-map)
           var-binds))
 
 (defn- snmp-get-request
