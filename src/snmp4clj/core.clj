@@ -24,6 +24,8 @@
                      :retries          3
                      :max-pdu          65535})
 
+(defn get-oids [oids] (if (string? oids) [oids] oids))
+
 (defn snmp->clojure
   [var-binds]
 
@@ -42,7 +44,7 @@
   ([command session oids config]
    (let [{:keys [version community async] :as config} (merge default-config config)
 
-         oids    (if (string? oids) [oids] oids)
+         oids    (get-oids oids)
          pdu     (pdu/create-pdu command oids config)
          target  (target/create-target version config)]
      (if async
@@ -62,6 +64,7 @@
   (let [{:keys [version community async max-rows-per-pdu max-cols-per-pdu
                 lower-bound upper-bound] :as config} (merge default-config config)
 
+        oids    (get-oids oids)
         target  (target/create-target version config)
         table   (doto (TableUtils. session (DefaultPDUFactory.))
                   (.setMaxNumRowsPerPDU max-rows-per-pdu)
