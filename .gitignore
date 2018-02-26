@@ -1,5 +1,15 @@
-pom.xml
 Manifest.txt
-*.jar
 lib
 classes
+/target
+/classes
+/checkouts
+pom.xml
+pom.xml.asc
+*.jar
+*.class
+/.lein-*
+/.nrepl-port
+.hgignore
+.hg/
+.env
