@@ -2,25 +2,26 @@
   (:import [org.snmp4j Snmp PDUv1 PDU ScopedPDU]
            [org.snmp4j.smi OID VariableBinding]))
 
-(defn init-pdu [pdu type oids]
+(defn init-pdu [pdu type oids {:keys [max-repetitions] :as config}]
   (doto pdu
     (.setType type)
+    (.setMaxRepetitions max-repetitions)
     (.addAll
       (into-array VariableBinding
         (map #(VariableBinding. (OID. %)) oids)))))
 
 (defmulti create-pdu
-  (fn [version type oids]
+  (fn [type oids {:keys [version] :as config}]
     (if (contains? #{:v1 :v2c :v3} version) version :v2c)))
 
 (defmethod create-pdu :v1
-  [version type oids]
-  (init-pdu (PDUv1.) type oids))
+  [type oids config]
+  (init-pdu (PDUv1.) type oids config))
 
 (defmethod create-pdu :default
-  [version type oids]
-  (init-pdu (PDU.) type oids))
+  [type oids config]
+  (init-pdu (PDU.) type oids config))
 
 (defmethod create-pdu :v3
-  [version type oids]
-  (init-pdu (ScopedPDU.) type oids))
+  [type oids config]
+  (init-pdu (ScopedPDU.) type oids config))

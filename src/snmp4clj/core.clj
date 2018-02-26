@@ -12,6 +12,7 @@
                      :transport        "udp"
                      :port             161
                      :address          "localhost"
+                     :max-repetitions  10
                      :version          :v2c
                      :async            nil
                      :max-rows-per-pdu 10
@@ -41,9 +42,8 @@
   (let [{:keys [version community async] :as config} (merge default-config config)
 
         oids    (if (string? oids) [oids] oids)
-        pdu     (pdu/create-pdu version command oids)
-        target  (target/create-target version config)
-        _ (println "P" pdu "T" target)]
+        pdu     (pdu/create-pdu command oids config)
+        target  (target/create-target version config)]
     (if async
       (.send session pdu target nil async)
       (some-> (.send session pdu target)
