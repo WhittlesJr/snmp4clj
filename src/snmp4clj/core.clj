@@ -39,18 +39,18 @@
      (snmp-get-request command s oids config)))
 
   ([command session oids config]
-  (let [{:keys [version community async] :as config} (merge default-config config)
+   (let [{:keys [version community async] :as config} (merge default-config config)
 
-        oids    (if (string? oids) [oids] oids)
-        pdu     (pdu/create-pdu command oids config)
-        target  (target/create-target version config)]
-    (if async
-      (.send session pdu target nil async)
-      (some-> (.send session pdu target)
-              (.getResponse)
-              (.getVariableBindings)
-              (seq)
-              snmp->clojure)))))
+         oids    (if (string? oids) [oids] oids)
+         pdu     (pdu/create-pdu command oids config)
+         target  (target/create-target version config)]
+     (if async
+       (.send session pdu target nil async)
+       (some-> (.send session pdu target)
+               (.getResponse)
+               (.getVariableBindings)
+               (seq)
+               snmp->clojure)))))
 
 (def snmp-get (partial snmp-get-request PDU/GET))
 (def snmp-get-next (partial snmp-get-request PDU/GETNEXT))
