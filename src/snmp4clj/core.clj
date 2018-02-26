@@ -60,7 +60,11 @@
 (def snmp-get-bulk (partial snmp-get-request PDU/GETBULK))
 
 (defn snmp-table-walk
-  [session oids & [config]]
+  ([oids config]
+   (session/with-snmp-session s
+     (snmp-table-walk s oids config)))
+
+  ([session oids config]
   (let [{:keys [version community async max-rows-per-pdu max-cols-per-pdu
                 lower-bound upper-bound] :as config} (merge default-config config)
 
@@ -79,4 +83,4 @@
         (let [ret (map (comp seq (memfn getColumns)) tbl)]
           (if (first ret)
             ret
-            '()))))))
+            '())))))))
