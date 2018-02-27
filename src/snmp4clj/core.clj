@@ -2,27 +2,13 @@
   (:require [flatland.ordered.map :refer [ordered-map]]
             [snmp4clj.pdu :as pdu]
             [snmp4clj.target :as target]
-            [snmp4clj.session :as session])
+            [snmp4clj.session :as session]
+            [snmp4clj.constants :as const])
   (:import [org.snmp4j Snmp PDU]
            [org.snmp4j.smi OID]
            [org.snmp4j.event ResponseListener]
            [org.snmp4j.util TableUtils TreeUtils DefaultPDUFactory])
   (:gen-class))
-
-(def default-config {:community        "public"
-                     :transport        "udp"
-                     :port             161
-                     :address          "localhost"
-                     :max-repetitions  10
-                     :version          :v2c
-                     :async            nil
-                     :max-rows-per-pdu 10
-                     :max-cols-per-pdu 10
-                     :lower-bound      0
-                     :upper-bound      999999
-                     :timeout          10
-                     :retries          3
-                     :max-pdu          65535})
 
 (defn get-oids [oids] (if (string? oids) [oids] oids))
 
@@ -44,11 +30,11 @@
      (snmp-get-request command s oids config)))
 
   ([command session oids config]
-   (let [{:keys [version community async] :as config} (merge default-config config)
+   (let [{:keys [async] :as config} (merge const/default-config config)
 
          oids    (get-oids oids)
          pdu     (pdu/create-pdu command oids config)
-         target  (target/create-target version config)]
+         target  (target/create-target config)]
      (if async
        (.send session pdu target nil async)
        (some-> (.send session pdu target)
@@ -74,14 +60,14 @@
      (snmp-table-walk s oids config)))
 
   ([session oids config]
-   (let [{:keys [version community async max-rows-per-pdu max-cols-per-pdu
-                 lower-bound upper-bound] :as config} (merge default-config config)
+   (let [{:keys [async max-rows-per-pdu max-cols-per-pdu lower-bound upper-bound]
+          :as   config} (merge const/default-config config)
 
-         oids    (get-oids oids)
-         target  (target/create-target version config)
-         table   (doto (TableUtils. session (DefaultPDUFactory.))
-                   (.setMaxNumRowsPerPDU max-rows-per-pdu)
-                   (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
+         oids   (get-oids oids)
+         target (target/create-target config)
+         table  (doto (TableUtils. session (DefaultPDUFactory.))
+                  (.setMaxNumRowsPerPDU max-rows-per-pdu)
+                  (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
      (if async
        (.getTable table target async nil (OID. (str lower-bound)) (OID. (str upper-bound)))
        (let [tbl (.getTable table target
