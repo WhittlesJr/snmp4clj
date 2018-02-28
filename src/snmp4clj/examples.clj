@@ -6,9 +6,9 @@
   (:gen-class))
 
 (defn -main []
-  (session/with-snmp-session session
+  (let [session (session/get-snmp-session)]
     (println "retrieve a name of the first network interface")
-    (println (core/snmp-get-next session "1.3.6.1.2.1.31.1.1.1.1"))
+    (println (core/snmp-session-get-next session "1.3.6.1.2.1.31.1.1.1.1"))
 
     ;; (println "retrieve asynchronously")
     ;; (let [listener (proxy [ResponseListener] []
@@ -16,12 +16,12 @@
     ;;                              (print (.getResponse event))
     ;;                              (println " (async)")))]
     ;;   (dotimes [_ 100]
-    ;;     (core/snmp-get-next session
+    ;;     (core/snmp-session-get-next session
     ;;                    :async listener
     ;;                    "1.3.6.1.2.1.31.1.1.1.1")))
 
     ;; (println "retrieve a status map of all network interfaces")
-    ;; (-?> (core/snmp-table-walk session
+    ;; (-?> (core/snmp-session-table-walk session
     ;;        "1.3.6.1.2.1.31.1.1.1.1"
     ;;        "1.3.6.1.2.1.31.1.1.1.2"
     ;;        "1.3.6.1.2.1.31.1.1.1.3")
@@ -30,14 +30,14 @@
     (println "table-walk with for-table-* utilities")
     (println
      (pprint/pprint
-      (core/snmp-table-walk session
+      (core/snmp-session-table-walk session
                        "1.3.6.1.2.1.31.1.1.1.1"
                        "1.3.6.1.2.1.31.1.1.1.2"
                        "1.3.6.1.2.1.31.1.1.1.3")))
 
     (println
      (pprint/pprint
-      (core/snmp-table-walk session
+      (core/snmp-session-table-walk session
                        :address "udp:192.168.6.57/161"
                        "1.0.8802.1.1.2.1.4.1.1.7"
                        "1.0.8802.1.1.2.1.4.1.1.9")))))
