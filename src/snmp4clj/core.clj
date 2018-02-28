@@ -27,10 +27,6 @@
 (defn- snmp-session-get-request
   [command {:keys [config process] :as session} oids]
 
-  (println "SESS" session)
-  (println "USM ID" (-> session :usm .getLocalEngineID))
-  (println "USM USERS" (-> session :usm .getUserTable .getUserEntries))
-  (println "MPM ID" (-> session :mpm .getLocalEngineID))
   (let [{:keys [async]} config
 
         oids   (get-oids oids)

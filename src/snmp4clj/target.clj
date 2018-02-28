@@ -19,10 +19,8 @@
 
 (defmethod create-target :v3
   [{:keys [community security-level security-model user-name engine-id] :as config}]
-  (println "NAME" user-name)
   (doto (configure-target-base (UserTarget.) config)
     (.setAuthoritativeEngineID engine-id)
     (.setSecurityName user-name)
     (.setSecurityModel security-model)
-    (.setSecurityLevel security-level)
-    (println "TARGET")))
+    (.setSecurityLevel security-level)))

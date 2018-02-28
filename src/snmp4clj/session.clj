@@ -37,7 +37,6 @@
   [process {:keys [version version-id] :as config}]
 
   (let [mpm (.getMessageProcessingModel process version-id)]
-    (println "MPM" mpm version version-id)
     (cond (= version :v3) (init-v3-mpm mpm config)
           :else           mpm)))
 
@@ -59,7 +58,6 @@
   (let [process            (create-snmp-process)
         security-protocols (create-default-security-protocols)
         config             (const/get-config config security-protocols)
-        _                  (println "CONFIG" config)
         mpm                (get-mpm process config)
         usm                (create-usm security-protocols config)
         security-models    (create-security-models usm mpm)

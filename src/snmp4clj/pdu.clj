@@ -27,5 +27,4 @@
   (let [pdu (doto (ScopedPDU.)
               (.setContextEngineID local-engine-id)
               (.setContextName user-name))]
-    (init-pdu pdu command oids config)
-    (doto pdu (println "PDU"))))
+    (init-pdu pdu command oids config)))
