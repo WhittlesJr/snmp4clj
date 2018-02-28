@@ -1,7 +1,7 @@
 (ns snmp4clj.pdu
+  (:require [snmp4clj.session :as session])
   (:import [org.snmp4j PDU PDUv1 ScopedPDU]
-           [org.snmp4j.smi OID VariableBinding])
-  (:require [snmp4clj.session :as session]))
+           [org.snmp4j.smi OctetString OID VariableBinding]))
 
 (defn init-pdu [pdu command oids {:keys [config] :as session}]
   (let [{:keys [max-repetitions]} config]
@@ -26,10 +26,12 @@
   (init-pdu (PDU.) command oids session))
 
 (defmethod create-pdu :v3
-  [command oids {:keys [usm config] :as session}]
+  [command oids {:keys [config] :as session}]
 
-  (let [engine-id (session/get-local-engine-id usm config)
+  (let [engine-id (session/get-local-engine-id session)
         pdu       (doto (ScopedPDU.)
-                    (.setContextEngineID engine-id))]
+                    (.setContextEngineID engine-id)
+                    (.setContextName (OctetString. (:user-name config))))]
 
-    (init-pdu pdu command oids session)))
+    (init-pdu pdu command oids session)
+    (doto pdu (println "PDU"))))
