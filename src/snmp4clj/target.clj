@@ -2,6 +2,7 @@
   (:require [snmp4clj.constants :as const])
   (:import (org.snmp4j CommunityTarget
                        UserTarget)
+           (org.snmp4j.security SecurityModel)
            (org.snmp4j.smi GenericAddress OctetString)))
 
 (defn get-bytes [string] (byte-array (.getBytes string)))
@@ -36,4 +37,5 @@
   (doto (configure-target-base (UserTarget.) config)
     (.setAuthoritativeEngineID (get-bytes auth-engine-id))
     (.setSecurityName (OctetString. user-name))
+    (.setSecurityModel SecurityModel/SECURITY_MODEL_USM)
     (.setSecurityLevel (const/get-security-level config))))
