@@ -93,6 +93,7 @@
   [config-map security-protocols]
   (-> (merge default-config config-map)
       (assoc :security-model SecurityModel/SECURITY_MODEL_USM) ;;TODO: others?
+      (as-> m (assoc m :engine-id-str (get-octet-string (:engine-id m))))
       (update :engine-id get-bytes)
       (update :local-engine-id #(or % (get-random-engine-id)))
       (update :local-engine-id get-octet-string)

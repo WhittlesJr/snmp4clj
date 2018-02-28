@@ -22,9 +22,10 @@
   (init-pdu (PDU.) command oids config))
 
 (defmethod create-pdu :v3
-  [command oids {:keys [local-engine-id user-name] :as config}]
+  [command oids {:keys [engine-id-str user-name] :as config}]
 
+  (println "ENG" engine-id-str)
   (let [pdu (doto (ScopedPDU.)
-              (.setContextEngineID local-engine-id)
+              (.setContextEngineID engine-id-str)
               (.setContextName user-name))]
     (init-pdu pdu command oids config)))
