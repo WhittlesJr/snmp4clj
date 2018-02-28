@@ -1,9 +1,8 @@
 (ns snmp4clj.target
   (:require [snmp4clj.constants :as const])
-  (:import (org.snmp4j CommunityTarget
-                       UserTarget)
-           (org.snmp4j.security SecurityModel)
-           (org.snmp4j.smi GenericAddress OctetString)))
+  (:import [org.snmp4j CommunityTarget UserTarget]
+           org.snmp4j.security.SecurityModel
+           [org.snmp4j.smi GenericAddress OctetString]))
 
 (defn get-bytes [string] (byte-array (.getBytes string)))
 (defn- get-address
