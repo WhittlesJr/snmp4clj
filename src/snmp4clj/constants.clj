@@ -1,19 +1,21 @@
 (ns snmp4clj.constants
-  (:import (org.snmp4j.mp SnmpConstants)
-           (org.snmp4j.security SecurityLevel
-                                Priv3DES PrivDES PrivAES128
-                                PrivAES192 PrivAES256 AuthMD5 AuthSHA
-                                AuthHMAC128SHA224 AuthHMAC192SHA256
-                                AuthHMAC256SHA384 AuthHMAC384SHA512)))
+  (:require [crypto.random :as cr-rand])
+  (:import [org.snmp4j.mp MPv3 SnmpConstants]
+           [org.snmp4j.security
+            AuthHMAC128SHA224 AuthHMAC192SHA256 AuthHMAC256SHA384
+            AuthHMAC384SHA512 AuthMD5 AuthSHA Priv3DES
+            PrivAES128 PrivAES192 PrivAES256 SecurityLevel SecurityModel]
+           [org.snmp4j.smi GenericAddress OctetString ]))
 
 (def default-config {:community        "public"
                      :transport        "udp"
                      :port             161
                      :address          "localhost"
                      :max-repetitions  10
+                     :engine-boots     0
                      :version          :v2c
                      :async            nil
-                     :auth-engine-id   nil
+                     :engine-id   nil
                      :local-engine-id  nil
                      :auth             nil
                      :auth-pass        nil
@@ -50,9 +52,59 @@
 (def auth-protocols (-> auth-protocol-id-map keys set))
 (def privacy-protocols (-> privacy-protocol-id-map keys set))
 
+(defn get-bytes [string] (if (some? string) (byte-array (.getBytes string))))
+(defn get-octet-string [string] (if (some? string) (OctetString. string)))
+
+(defn sanitize-version
+  [version]
+  (if (contains? #{:v1 :v2c :v3} version)
+    version
+    :v2c))
+
+(defn get-random-engine-id
+  []
+  (-> (OctetString. (cr-rand/bytes 8))
+      MPv3/createLocalEngineID))
+
+(defn get-auth-key
+  [security-protocols {:keys [auth-id auth-pass engine-id] :as config}]
+  (if (every? some? [auth-id auth-pass engine-id])
+    (.passwordToKey security-protocols auth-id auth-pass engine-id)))
+
+(defn get-priv-key
+  [security-protocols {:keys [priv-id priv-pass engine-id] :as config}]
+  (if (every? some? [priv-id priv-pass engine-id])
+    (.passwordToKey security-protocols priv-id priv-pass engine-id)))
+
+(defn get-full-address
+  [{:keys [transport address port] :as config}]
+
+  (-> (str transport ":" address "/" port)
+      GenericAddress/parse))
+
 (defn get-security-level
   [{:keys [auth priv] :as config}]
 
   (let [auth? (boolean (auth-protocols auth))
         priv? (boolean (privacy-protocols priv))]
     (get security-level-map [auth? priv?] SecurityLevel/NOAUTH_NOPRIV)))
+
+(defn get-config
+  [config-map security-protocols]
+  (-> (merge default-config config-map)
+      (assoc :security-model SecurityModel/SECURITY_MODEL_USM) ;;TODO: others?
+      (update :engine-id get-bytes)
+      (update :local-engine-id #(or % (get-random-engine-id)))
+      (update :local-engine-id get-octet-string)
+      (update :user-name get-octet-string)
+      (update :community get-octet-string)
+      (update :version sanitize-version)
+      (as-> m (assoc m
+                     :security-level (get-security-level m)
+                     :version-id (get version-map (:version m))
+                     :full-address (get-full-address m)
+                     :auth-id (get auth-protocol-id-map (:auth m))
+                     :priv-id (get privacy-protocol-id-map (:priv m))))
+      (as-> m (assoc m
+                     :auth-key (get-auth-key security-protocols m)
+                     :priv-key (get-priv-key security-protocols m)))))

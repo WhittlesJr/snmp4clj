@@ -1,37 +1,31 @@
 (ns snmp4clj.pdu
-  (:require [snmp4clj.session :as session])
   (:import [org.snmp4j PDU PDUv1 ScopedPDU]
-           [org.snmp4j.smi OctetString OID VariableBinding]))
+           [org.snmp4j.smi OID VariableBinding]))
 
-(defn init-pdu [pdu command oids {:keys [config] :as session}]
-  (let [{:keys [max-repetitions]} config]
-    (doto pdu
-      (.setType command)
-      (.setMaxRepetitions max-repetitions)
-      (.addAll
-       (into-array VariableBinding
-                   (map #(VariableBinding. (OID. %)) oids))))))
+(defn init-pdu
+  [pdu command oids {:keys [max-repetitions] :as config}]
+  (doto pdu
+    (.setType command)
+    (.setMaxRepetitions max-repetitions)
+    (.addAll
+     (into-array VariableBinding
+                 (map #(VariableBinding. (OID. %)) oids)))))
 
-(defmulti create-pdu
-  (fn [command oids {:keys [config] :as session}]
-    (let [{:keys [version]} config]
-      (if (contains? #{:v1 :v2c :v3} version) version :v2c))))
+(defmulti create-pdu (fn [command oids config] (:version config)))
 
 (defmethod create-pdu :v1
-  [command oids session]
-  (init-pdu (PDUv1.) command oids session))
+  [command oids config]
+  (init-pdu (PDUv1.) command oids config))
 
 (defmethod create-pdu :default
-  [command oids session]
-  (init-pdu (PDU.) command oids session))
+  [command oids config]
+  (init-pdu (PDU.) command oids config))
 
 (defmethod create-pdu :v3
-  [command oids {:keys [config] :as session}]
+  [command oids {:keys [local-engine-id user-name] :as config}]
 
-  (let [engine-id (session/get-local-engine-id session)
-        pdu       (doto (ScopedPDU.)
-                    (.setContextEngineID engine-id)
-                    (.setContextName (OctetString. (:user-name config))))]
-
-    (init-pdu pdu command oids session)
+  (let [pdu (doto (ScopedPDU.)
+              (.setContextEngineID local-engine-id)
+              (.setContextName user-name))]
+    (init-pdu pdu command oids config)
     (doto pdu (println "PDU"))))

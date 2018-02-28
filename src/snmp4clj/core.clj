@@ -28,11 +28,13 @@
   [command {:keys [config process] :as session} oids]
 
   (println "SESS" session)
-  (println "ID" (-> session :usm .getLocalEngineID))
+  (println "USM ID" (-> session :usm .getLocalEngineID))
+  (println "USM USERS" (-> session :usm .getUserTable .getUserEntries))
+  (println "MPM ID" (-> session :mpm .getLocalEngineID))
   (let [{:keys [async]} config
 
         oids   (get-oids oids)
-        pdu    (pdu/create-pdu command oids session)
+        pdu    (pdu/create-pdu command oids config)
         target (target/create-target config)]
     (if async
       (.send process pdu target nil async)

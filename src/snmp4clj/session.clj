@@ -1,101 +1,73 @@
 (ns snmp4clj.session
-  (:require [crypto.random :as cr-rand]
-            [snmp4clj.constants :as const])
+  (:require [snmp4clj.constants :as const])
   (:import org.snmp4j.mp.MPv3
            [org.snmp4j.security SecurityModels SecurityProtocols USM UsmUser]
            org.snmp4j.smi.OctetString
            org.snmp4j.Snmp
            org.snmp4j.transport.DefaultUdpTransportMapping))
 
-(defn create-default-protocols
-  []
-  (-> (SecurityProtocols/getInstance)
-      .addDefaultProtocols))
-
-(defn- local-engine-id-addr
-  [obj]
-  (OctetString. (.getLocalEngineID obj)))
-
-(defn get-local-engine-id
-  [{:keys [mpm] :as session}]
-
-  (local-engine-id-addr mpm))
-
-(defn create-usm
-  [protocols config mpm]
-  (USM. protocols (local-engine-id-addr mpm) 0))
-
-(defn create-security-models
-  [model]
-
-  (doto (SecurityModels/getInstance)
-    (.addSecurityModel model)))
-
-(defn create-usm-user
-  [mpm {:keys [user-name auth auth-pass priv priv-pass] :as config}]
-
-  (if user-name
-    (let [engine-id (local-engine-id-addr mpm)
-          user-name (OctetString. user-name)]
-      (UsmUser. user-name
-                (get const/auth-protocol-id-map auth)
-                (if auth-pass (OctetString. auth-pass))
-                (get const/privacy-protocol-id-map priv)
-                (if priv-pass (OctetString. priv-pass))
-                engine-id))))
-
-(defn add-usm-user
-  [process user]
-  (if user
-    (.addUser (.getUSM process) (.getSecurityName user)
-              (.getLocalizationEngineID user)
-              user)))
-
 (defn create-snmp-process []
   (doto (Snmp. (DefaultUdpTransportMapping.))
     (.listen)))
 
-(defn get-random-engine-id
+(defn create-default-security-protocols
   []
-  (-> (OctetString. (cr-rand/bytes 8))
-      MPv3/createLocalEngineID
-      OctetString.))
+  (-> (SecurityProtocols/getInstance)
+      .addDefaultProtocols))
 
-(defn- gen-local-engine-id
-  [{:keys [local-engine-id] :as config}]
-  (if (some? local-engine-id)
-    (OctetString. local-engine-id)
-    (get-random-engine-id)))
+(defn add-usm-user
+  [process {:keys [engine-id user-name auth-id auth-key priv-id priv-key]
+            :as   config}]
+  (if user-name
+    (doto (.getUSM process)
+      (.addLocalizedUser engine-id user-name auth-id auth-key priv-id priv-key))))
 
-(defn- init-v3-mpmessing
-  [mpm config]
+(defn- get-random-message-id
+  [{:keys [engine-boots] :as config}]
+  (MPv3/randomMsgID engine-boots))
+
+(defn- init-v3-mpm
+  [mpm {:keys [local-engine-id] :as config}]
 
   (doto mpm
-    (.setLocalEngineID (.getValue (gen-local-engine-id config)))))
+    (.setLocalEngineID (.getValue local-engine-id))
+    (.setCurrentMsgID (get-random-message-id config))))
 
 (defn get-mpm
-  [process {:keys [version] :as config}]
+  [process {:keys [version version-id] :as config}]
 
-  (let [version-id (get const/version-map version)
-        mpm        (-> process .getMessageDispatcher (.getMessageProcessingModel version-id))]
-    (cond (= version :v3) (init-v3-mpmessing mpm config)
+  (let [mpm (.getMessageProcessingModel process version-id)]
+    (println "MPM" mpm version version-id)
+    (cond (= version :v3) (init-v3-mpm mpm config)
           :else           mpm)))
+
+(defn create-usm
+  [security-protocols {:keys [local-engine-id] :as config}]
+  (USM. security-protocols local-engine-id 0))
+
+(defn create-security-models
+  [model mpm]
+
+  (let [security-models (doto (SecurityModels/getInstance)
+                          (.addSecurityModel model))]
+    (.setSecurityModels mpm security-models)
+    security-models))
 
 (defn get-snmp-session
   [& [config]]
 
-  (let [config    (merge const/default-config config)
-        process   (create-snmp-process)
-        mpm       (get-mpm process config)
-        protocols (create-default-protocols)
-        usm       (create-usm protocols config mpm)
-        user      (create-usm-user usm config)
-        _         (add-usm-user process user)]
+  (let [process            (create-snmp-process)
+        security-protocols (create-default-security-protocols)
+        config             (const/get-config config security-protocols)
+        _                  (println "CONFIG" config)
+        mpm                (get-mpm process config)
+        usm                (create-usm security-protocols config)
+        security-models    (create-security-models usm mpm)
+        _                  (add-usm-user process config)]
 
-    {:config          config
-     :process         process
-     :protocols       protocols
-     :user            user
-     :usm             usm
-     :mpm             mpm
-     :security-models (create-security-models usm)}))
+    {:config             config
+     :process            process
+     :security-protocols security-protocols
+     :mpm                mpm
+     :usm                usm
+     :security-models    security-models}))
