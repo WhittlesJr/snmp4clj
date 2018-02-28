@@ -24,28 +24,36 @@
           (ordered-map)
           var-binds))
 
+(defn- snmp-session-get-request
+  [command {:keys [config process] :as session} oids]
+
+  (println "SESS" session)
+  (println "ID" (-> session :usm .getLocalEngineID))
+  (let [{:keys [async]} config
+
+        oids   (get-oids oids)
+        pdu    (pdu/create-pdu command oids session)
+        target (target/create-target config)]
+    (if async
+      (.send process pdu target nil async)
+      (some-> (.send process pdu target)
+              (.getResponse)
+              (.getVariableBindings)
+              (seq)
+              snmp->clojure))))
+
 (defn- snmp-get-request
-  ([command oids config]
-   (session/with-snmp-session s
-     (snmp-get-request command s oids config)))
+  [command oids config]
 
-  ([command session oids config]
-   (let [{:keys [async] :as config} (merge const/default-config config)
-
-         oids    (get-oids oids)
-         pdu     (pdu/create-pdu command oids config)
-         target  (target/create-target config)]
-     (if async
-       (.send session pdu target nil async)
-       (some-> (.send session pdu target)
-               (.getResponse)
-               (.getVariableBindings)
-               (seq)
-               snmp->clojure)))))
+  (snmp-session-get-request command (session/get-snmp-session config) oids))
 
 (def snmp-get (partial snmp-get-request PDU/GET))
 (def snmp-get-next (partial snmp-get-request PDU/GETNEXT))
 (def snmp-get-bulk (partial snmp-get-request PDU/GETBULK))
+
+(def snmp-session-get (partial snmp-session-get-request PDU/GET))
+(def snmp-session-get-next (partial snmp-session-get-request PDU/GETNEXT))
+(def snmp-session-get-bulk (partial snmp-session-get-request PDU/GETBULK))
 
 (defn- snmp-table->clojure-maps
   [table oids]
@@ -54,24 +62,25 @@
        (map snmp->clojure)
        (apply merge)))
 
+(defn snmp-session-table-walk
+  [{:keys [process config] :as session} oids]
+  (let [{:keys [async max-rows-per-pdu max-cols-per-pdu
+                lower-bound upper-bound]} config
+
+        oids   (get-oids oids)
+        target (target/create-target config)
+        table  (doto (TableUtils. process (DefaultPDUFactory.))
+                 (.setMaxNumRowsPerPDU max-rows-per-pdu)
+                 (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
+    (if async
+      (.getTable table target async nil (OID. (str lower-bound)) (OID. (str upper-bound)))
+      (let [tbl (.getTable table target
+                           (into-array OID (map #(OID. %) oids))
+                           (OID. (str lower-bound))
+                           (OID. (str upper-bound)))]
+        (snmp-table->clojure-maps tbl oids)))))
+
 (defn snmp-table-walk
-  ([oids config]
-   (session/with-snmp-session s
-     (snmp-table-walk s oids config)))
+  [oids config]
 
-  ([session oids config]
-   (let [{:keys [async max-rows-per-pdu max-cols-per-pdu lower-bound upper-bound]
-          :as   config} (merge const/default-config config)
-
-         oids   (get-oids oids)
-         target (target/create-target config)
-         table  (doto (TableUtils. session (DefaultPDUFactory.))
-                  (.setMaxNumRowsPerPDU max-rows-per-pdu)
-                  (.setMaxNumColumnsPerPDU max-cols-per-pdu))]
-     (if async
-       (.getTable table target async nil (OID. (str lower-bound)) (OID. (str upper-bound)))
-       (let [tbl (.getTable table target
-                            (into-array OID (map #(OID. %) oids))
-                            (OID. (str lower-bound))
-                            (OID. (str upper-bound)))]
-         (snmp-table->clojure-maps tbl oids))))))
+  (snmp-session-table-walk (session/get-snmp-session config) oids))
