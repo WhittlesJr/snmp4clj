@@ -30,6 +30,7 @@
   [mpm {:keys [local-engine-id] :as config}]
 
   (doto mpm
+    (.addEngineID (Address. full-address) engine-id-str)
     (.setLocalEngineID (.getValue local-engine-id))
     (.setCurrentMsgID (get-random-message-id config))))
 
